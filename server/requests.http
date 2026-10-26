@@ -1,0 +1,19 @@
+### Get all workouts
+GET http://localhost:5000/workouts
+
+### Add a workout
+POST http://localhost:5000/workouts
+Content-Type: application/json
+
+{
+  "title": "Leg Day",
+  "notes": "Squats felt heavy"
+}
+
+### Add a workout with no title (should fail)
+POST http://localhost:5000/workouts
+Content-Type: application/json
+
+{
+  "notes": "oops"
+}
