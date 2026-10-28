@@ -17,3 +17,59 @@ Content-Type: application/json
 {
   "notes": "oops"
 }
+### Edit workout 2
+PUT http://localhost:5000/workouts/2
+Content-Type: application/json
+
+{
+  "title": "Leg Day (updated)",
+  "notes": "Squats felt lighter today"
+}
+
+### Delete workout 2
+DELETE http://localhost:5000/workouts/2
+
+### Delete a workout that doesn't exist (should fail)
+DELETE http://localhost:5000/workouts/999
+### Get all exercises
+GET http://localhost:5000/exercises
+
+### Add an exercise
+POST http://localhost:5000/exercises
+Content-Type: application/json
+
+{
+  "name": "Overhead Press"
+}
+
+### Add a duplicate (should fail)
+POST http://localhost:5000/exercises
+Content-Type: application/json
+
+{
+  "name": "Squat"
+}
+### Add Squat (exercise 2) to workout 1
+POST http://localhost:5000/workouts/1/exercises
+Content-Type: application/json
+
+{
+  "exercise_id": 2
+}
+
+### Log a set for workout_exercise 2
+POST http://localhost:5000/workout-exercises/4/sets
+Content-Type: application/json
+
+{
+  "reps": 5,
+  "weight": 80
+}
+
+### Bad exercise id (should fail)
+POST http://localhost:5000/workouts/1/exercises
+Content-Type: application/json
+
+{
+  "exercise_id": 999
+}

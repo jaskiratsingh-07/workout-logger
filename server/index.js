@@ -88,6 +88,84 @@ app.delete('/workouts/:id', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+app.get('/exercises', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM exercises ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+app.post('/exercises', async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO exercises (name) VALUES ($1) RETURNING *',
+      [name]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Exercise already exists' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+app.post('/workouts/:id/exercises', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { exercise_id } = req.body;
+
+    if (!exercise_id) {
+      return res.status(400).json({ error: 'exercise_id is required' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO workout_exercises (workout_id, exercise_id) VALUES ($1, $2) RETURNING *',
+      [id, exercise_id]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(404).json({ error: 'Workout or exercise not found' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+app.post('/workout-exercises/:id/sets', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reps, weight } = req.body;
+
+    if (!reps) {
+      return res.status(400).json({ error: 'reps is required' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO sets (workout_exercise_id, reps, weight) VALUES ($1, $2, COALESCE($3, 0)) RETURNING *',
+      [id, reps, weight]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(404).json({ error: 'Workout exercise not found' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
