@@ -166,6 +166,70 @@ app.post('/workout-exercises/:id/sets', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+app.get('/workouts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const workoutResult = await pool.query(
+      'SELECT * FROM workouts WHERE id = $1',
+      [id]
+    );
+
+    if (workoutResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Workout not found' });
+    }
+
+    const workout = workoutResult.rows[0];
+
+    const detailResult = await pool.query(
+      `SELECT
+         we.id AS workout_exercise_id,
+         e.id AS exercise_id,
+         e.name,
+         s.id AS set_id,
+         s.reps,
+         s.weight
+       FROM workout_exercises we
+       JOIN exercises e ON e.id = we.exercise_id
+       LEFT JOIN sets s ON s.workout_exercise_id = we.id
+       WHERE we.workout_id = $1
+       ORDER BY we.id, s.id`,
+      [id]
+    );
+
+    const exercises = [];
+
+    for (const row of detailResult.rows) {
+      let exercise = exercises.find(
+        (ex) => ex.workout_exercise_id === row.workout_exercise_id
+      );
+
+      if (!exercise) {
+        exercise = {
+          workout_exercise_id: row.workout_exercise_id,
+          exercise_id: row.exercise_id,
+          name: row.name,
+          sets: [],
+        };
+        exercises.push(exercise);
+      }
+
+      if (row.set_id) {
+        exercise.sets.push({
+          id: row.set_id,
+          reps: row.reps,
+          weight: row.weight,
+        });
+      }
+    }
+
+    workout.exercises = exercises;
+    res.json(workout);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
