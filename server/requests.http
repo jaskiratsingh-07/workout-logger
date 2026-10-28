@@ -73,3 +73,8 @@ Content-Type: application/json
 {
   "exercise_id": 999
 }
+### Get full workout 1
+GET http://localhost:5000/workouts/1
+
+### Get a workout that doesn't exist (should fail)
+GET http://localhost:5000/workouts/999
