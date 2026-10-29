@@ -22,10 +22,23 @@ function App() {
       body: JSON.stringify({ title, notes }),
     });
 
+    if (!res.ok) {
+      alert('Could not save workout since the title is empty!');
+      return;
+    }
+
     const newWorkout = await res.json();
     setWorkouts([newWorkout, ...workouts]);
     setTitle('');
     setNotes('');
+  }
+
+  async function handleDelete(id) {
+    const res = await fetch(`${API}/workouts/${id}`, { method: 'DELETE' });
+
+    if (res.ok) {
+      setWorkouts(workouts.filter((w) => w.id !== id));
+    }
   }
 
   return (
@@ -49,7 +62,8 @@ function App() {
       <ul>
         {workouts.map((w) => (
           <li key={w.id}>
-            {w.title}: {w.notes}
+            {w.title}: {w.notes}{' '}
+            <button onClick={() => handleDelete(w.id)}>Delete</button>
           </li>
         ))}
       </ul>
