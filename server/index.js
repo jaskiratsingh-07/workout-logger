@@ -1,20 +1,18 @@
 const express = require('express');
 const cors = require('cors');
+const pool = require('./db');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.get('/',(req,res) => {
-    res.json({ message: 'FIRST SERVER :)'});
+app.get('/', (req, res) => {
+  res.json({ message: 'FIRST SERVER :)' });
 });
-const pool = require('./db');
 
-app.get('/db-test', async (req, res) => {
-  const result = await pool.query('SELECT NOW()');
-  res.json(result.rows[0]);
-});
 app.get('/workouts', async (req, res) => {
   try {
     const result = await pool.query(
@@ -26,6 +24,7 @@ app.get('/workouts', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
 app.post('/workouts', async (req, res) => {
   try {
     const { title, workout_date, notes } = req.body;
@@ -45,6 +44,7 @@ app.post('/workouts', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
 app.put('/workouts/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -69,6 +69,7 @@ app.put('/workouts/:id', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
 app.delete('/workouts/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -88,6 +89,7 @@ app.delete('/workouts/:id', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
 app.get('/exercises', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM exercises ORDER BY name');
@@ -120,6 +122,7 @@ app.post('/exercises', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
 app.post('/workouts/:id/exercises', async (req, res) => {
   try {
     const { id } = req.params;
@@ -143,6 +146,7 @@ app.post('/workouts/:id/exercises', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
 app.post('/workout-exercises/:id/sets', async (req, res) => {
   try {
     const { id } = req.params;
@@ -166,6 +170,7 @@ app.post('/workout-exercises/:id/sets', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
 app.get('/workouts/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -230,6 +235,72 @@ app.get('/workouts/:id', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
+app.post('/auth/signup', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    if (password.length < 8) {
+      return res
+        .status(400)
+        .json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const result = await pool.query(
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
+      [email.toLowerCase(), passwordHash]
+    );
+
+    const user = result.rows[0];
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    res.status(201).json({ token, user });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [
+      email.toLowerCase(),
+    ]);
+
+    const user = result.rows[0];
+
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    res.json({ token, user: { id: user.id, email: user.email } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
