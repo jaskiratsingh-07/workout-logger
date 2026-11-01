@@ -105,3 +105,9 @@ Content-Type: application/json
   "email": "test@example.com",
   "password": "wrongpassword"
 }
+### Get workouts without a token (should fail)
+GET http://localhost:5000/workouts
+
+### Get workouts with a token
+GET http://localhost:5000/workouts
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc5MzQzMzUyNywiZXhwIjoxNzk0MDM4MzI3fQ.q89Zswh56ilTr_iV592-2Iqu8zpiJwuLjQKokgslcBk

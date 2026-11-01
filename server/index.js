@@ -9,14 +9,33 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+function requireAuth(req, res, next) {
+  const header = req.headers.authorization;
+
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
+
+  const token = header.split(' ')[1];
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = payload.userId;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
 app.get('/', (req, res) => {
   res.json({ message: 'FIRST SERVER :)' });
 });
 
-app.get('/workouts', async (req, res) => {
+app.get('/workouts', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM workouts ORDER BY workout_date DESC'
+      'SELECT * FROM workouts WHERE user_id = $1 ORDER BY workout_date DESC',
+      [req.userId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -25,7 +44,7 @@ app.get('/workouts', async (req, res) => {
   }
 });
 
-app.post('/workouts', async (req, res) => {
+app.post('/workouts', requireAuth, async (req, res) => {
   try {
     const { title, workout_date, notes } = req.body;
 
@@ -34,8 +53,8 @@ app.post('/workouts', async (req, res) => {
     }
 
     const result = await pool.query(
-      'INSERT INTO workouts (title, workout_date, notes) VALUES ($1, COALESCE($2, CURRENT_DATE), $3) RETURNING *',
-      [title, workout_date, notes]
+      'INSERT INTO workouts (title, workout_date, notes, user_id) VALUES ($1, COALESCE($2, CURRENT_DATE), $3, $4) RETURNING *',
+      [title, workout_date, notes, req.userId]
     );
 
     res.status(201).json(result.rows[0]);
@@ -45,7 +64,7 @@ app.post('/workouts', async (req, res) => {
   }
 });
 
-app.put('/workouts/:id', async (req, res) => {
+app.put('/workouts/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, workout_date, notes } = req.body;
@@ -55,8 +74,8 @@ app.put('/workouts/:id', async (req, res) => {
     }
 
     const result = await pool.query(
-      'UPDATE workouts SET title = $1, workout_date = COALESCE($2, workout_date), notes = $3 WHERE id = $4 RETURNING *',
-      [title, workout_date, notes, id]
+      'UPDATE workouts SET title = $1, workout_date = COALESCE($2, workout_date), notes = $3 WHERE id = $4 AND user_id = $5 RETURNING *',
+      [title, workout_date, notes, id, req.userId]
     );
 
     if (result.rows.length === 0) {
@@ -70,13 +89,13 @@ app.put('/workouts/:id', async (req, res) => {
   }
 });
 
-app.delete('/workouts/:id', async (req, res) => {
+app.delete('/workouts/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
     const result = await pool.query(
-      'DELETE FROM workouts WHERE id = $1 RETURNING *',
-      [id]
+      'DELETE FROM workouts WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, req.userId]
     );
 
     if (result.rows.length === 0) {
@@ -123,13 +142,22 @@ app.post('/exercises', async (req, res) => {
   }
 });
 
-app.post('/workouts/:id/exercises', async (req, res) => {
+app.post('/workouts/:id/exercises', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { exercise_id } = req.body;
 
     if (!exercise_id) {
       return res.status(400).json({ error: 'exercise_id is required' });
+    }
+
+    const owner = await pool.query(
+      'SELECT id FROM workouts WHERE id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+
+    if (owner.rows.length === 0) {
+      return res.status(404).json({ error: 'Workout not found' });
     }
 
     const result = await pool.query(
@@ -147,13 +175,25 @@ app.post('/workouts/:id/exercises', async (req, res) => {
   }
 });
 
-app.post('/workout-exercises/:id/sets', async (req, res) => {
+app.post('/workout-exercises/:id/sets', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { reps, weight } = req.body;
 
     if (!reps) {
       return res.status(400).json({ error: 'reps is required' });
+    }
+
+    const owner = await pool.query(
+      `SELECT we.id
+       FROM workout_exercises we
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE we.id = $1 AND w.user_id = $2`,
+      [id, req.userId]
+    );
+
+    if (owner.rows.length === 0) {
+      return res.status(404).json({ error: 'Workout exercise not found' });
     }
 
     const result = await pool.query(
@@ -171,13 +211,13 @@ app.post('/workout-exercises/:id/sets', async (req, res) => {
   }
 });
 
-app.get('/workouts/:id', async (req, res) => {
+app.get('/workouts/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
     const workoutResult = await pool.query(
-      'SELECT * FROM workouts WHERE id = $1',
-      [id]
+      'SELECT * FROM workouts WHERE id = $1 AND user_id = $2',
+      [id, req.userId]
     );
 
     if (workoutResult.rows.length === 0) {
