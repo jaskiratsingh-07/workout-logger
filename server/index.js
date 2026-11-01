@@ -276,6 +276,31 @@ app.get('/workouts/:id', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/progress/:exerciseId', requireAuth, async (req, res) => {
+  try {
+    const { exerciseId } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+         to_char(w.workout_date, 'YYYY-MM-DD') AS date,
+         MAX(s.weight)::float AS max_weight,
+         SUM(s.reps * s.weight)::float AS volume
+       FROM workouts w
+       JOIN workout_exercises we ON we.workout_id = w.id
+       JOIN sets s ON s.workout_exercise_id = we.id
+       WHERE w.user_id = $1 AND we.exercise_id = $2
+       GROUP BY w.id, w.workout_date
+       ORDER BY w.workout_date, w.id`,
+      [req.userId, exerciseId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 app.post('/auth/signup', async (req, res) => {
   try {
     const { email, password } = req.body;

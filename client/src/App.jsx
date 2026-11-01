@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
+import Progress from './Progress';
 
 const API = 'http://localhost:5000';
 
 function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [authMode, setAuthMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
   const [workouts, setWorkouts] = useState([]);
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -11,24 +17,72 @@ function App() {
   const [exerciseId, setExerciseId] = useState('');
   const [setInputs, setSetInputs] = useState({});
 
-  useEffect(() => {
-    fetch(`${API}/workouts`)
-      .then((res) => res.json())
-      .then((data) => setWorkouts(data));
-  }, []);
+  function logout() {
+    localStorage.removeItem('token');
+    setToken(null);
+    setWorkouts([]);
+    setSelected(null);
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...options.headers,
+      },
+    });
+
+    if (res.status === 401) {
+      logout();
+    }
+
+    return res;
+  }
 
   useEffect(() => {
+    if (!token) return;
+
+    api('/workouts')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setWorkouts(data);
+      });
+
     fetch(`${API}/exercises`)
       .then((res) => res.json())
       .then((data) => setExercises(data));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function handleAuth(e) {
+    e.preventDefault();
+
+    const res = await fetch(`${API}/auth/${authMode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || 'Something went wrong');
+      return;
+    }
+
+    localStorage.setItem('token', data.token);
+    setToken(data.token);
+    setEmail('');
+    setPassword('');
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
 
-    const res = await fetch(`${API}/workouts`, {
+    const res = await api('/workouts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, notes }),
     });
 
@@ -44,7 +98,7 @@ function App() {
   }
 
   async function handleDelete(id) {
-    const res = await fetch(`${API}/workouts/${id}`, { method: 'DELETE' });
+    const res = await api(`/workouts/${id}`, { method: 'DELETE' });
 
     if (res.ok) {
       setWorkouts(workouts.filter((w) => w.id !== id));
@@ -52,7 +106,7 @@ function App() {
   }
 
   async function refreshSelected(id) {
-    const res = await fetch(`${API}/workouts/${id}`);
+    const res = await api(`/workouts/${id}`);
     const data = await res.json();
     setSelected(data);
   }
@@ -68,9 +122,8 @@ function App() {
   async function handleAddExercise(workoutId) {
     if (!exerciseId) return;
 
-    const res = await fetch(`${API}/workouts/${workoutId}/exercises`, {
+    const res = await api(`/workouts/${workoutId}/exercises`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exercise_id: Number(exerciseId) }),
     });
 
@@ -98,9 +151,8 @@ function App() {
       return;
     }
 
-    const res = await fetch(`${API}/workout-exercises/${weId}/sets`, {
+    const res = await api(`/workout-exercises/${weId}/sets`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reps: Number(input.reps),
         weight: input.weight ? Number(input.weight) : 0,
@@ -116,9 +168,48 @@ function App() {
     refreshSelected(workoutId);
   }
 
+  if (!token) {
+    return (
+      <div>
+        <h1>Workout Logger</h1>
+        <h2>{authMode === 'login' ? 'Log in' : 'Sign up'}</h2>
+
+        <form onSubmit={handleAuth}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Password (min 8 characters)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button type="submit">
+            {authMode === 'login' ? 'Log in' : 'Sign up'}
+          </button>
+        </form>
+
+        <p>
+          {authMode === 'login' ? 'No account? ' : 'Already have one? '}
+          <button
+            onClick={() =>
+              setAuthMode(authMode === 'login' ? 'signup' : 'login')
+            }
+          >
+            {authMode === 'login' ? 'Sign up' : 'Log in'}
+          </button>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1>Workout Logger</h1>
+      <button onClick={logout}>Log out</button>
 
       <form onSubmit={handleSubmit}>
         <input
@@ -133,6 +224,8 @@ function App() {
         />
         <button type="submit">Add workout</button>
       </form>
+
+      <Progress token={token} exercises={exercises} />
 
       <ul>
         {workouts.map((w) => (

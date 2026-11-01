@@ -111,3 +111,7 @@ GET http://localhost:5000/workouts
 ### Get workouts with a token
 GET http://localhost:5000/workouts
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc5MzQzMzUyNywiZXhwIjoxNzk0MDM4MzI3fQ.q89Zswh56ilTr_iV592-2Iqu8zpiJwuLjQKokgslcBk
+
+### Progress for exercise 1
+GET http://localhost:5000/progress/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc5MzUyMDkxMiwiZXhwIjoxNzk0MTI1NzEyfQ.hq_CZsZtS_-m_U3oN8XlcjfVWykQNeLYEbbzJQ-xVDM
